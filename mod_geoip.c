@@ -399,6 +399,8 @@ static int geoip_header_parser(request_rec * r)
         } else if (apr_table_get(r->headers_in, "X-Forwarded-For")) {
             ipaddr_ptr =
                 (char *)apr_table_get(r->headers_in, "X-Forwarded-For");
+        } else if (apr_table_get(r->headers_in, "True-Client-IP")) {
+            ipaddr_ptr = (char *)apr_table_get(r->headers_in, "True-Client-IP");
         } else if (apr_table_get(r->subprocess_env, "HTTP_REMOTE_ADDR")) {
             ipaddr_ptr =
                 (char *)apr_table_get(r->subprocess_env, "HTTP_REMOTE_ADDR");
@@ -416,6 +418,10 @@ static int geoip_header_parser(request_rec * r)
             if (cfg->proxyHeaderMode ==
                 GEOIP_PROXY_HEADER_MODE_FIRST_NON_PRIVATE_IP) {
                 ipaddr = free_me = _get_ip_from_xff(ipaddr_ptr);
+                if (!ipaddr && apr_table_get(r->headers_in, "True-Client-IP")) {
+                    ipaddr =
+                        (char *)apr_table_get(r->headers_in, "True-Client-IP");
+                }
                 if (!ipaddr)
                     ipaddr = _get_client_ip(r);
             } else {
@@ -999,8 +1005,8 @@ static const char *set_geoip_output(cmd_parms * cmd, void *dummy,
                                     const char *arg)
 {
     geoip_server_config_rec *cfg =
-        (geoip_server_config_rec *) ap_get_module_config(cmd->server->
-                                                         module_config,
+        (geoip_server_config_rec *) ap_get_module_config(cmd->
+                                                         server->module_config,
                                                          &geoip_module);
 
     if (cfg->GeoIPOutput & GEOIP_DEFAULT) {
