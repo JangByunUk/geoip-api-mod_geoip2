@@ -88,6 +88,7 @@ typedef struct {
     int *GeoIPFlags2;
     int scanProxyHeaders;
     int proxyHeaderMode;
+    char *GeoIPProxyField;
 } geoip_server_config_rec;
 
 static const int GEOIP_PROXY_HEADER_MODE_FIRST_IP = 0;
@@ -99,8 +100,9 @@ static const int GEOIP_NONE = 0;
 static const int GEOIP_DEFAULT = 1;
 static const int GEOIP_NOTES = 2;
 static const int GEOIP_ENV = 4;
-static const int GEOIP_ALL = 6;
-static const int GEOIP_INIT = 7;
+static const int GEOIP_REQUEST = 8;
+static const int GEOIP_ALL = 14;
+static const int GEOIP_INIT = 15;
 
 static const int GEOIP_UNKNOWN = -1;
 
@@ -193,6 +195,7 @@ static void *create_geoip_server_config(apr_pool_t * p, server_rec * d)
     conf->GeoIPFlags2 = NULL;
     conf->scanProxyHeaders = 0;
     conf->proxyHeaderMode = 0;
+    conf->GeoIPProxyField = NULL;
     return (void *)conf;
 }
 
@@ -369,6 +372,9 @@ static void set_geoip_output(geoip_server_config_rec * cfg, request_rec * r,
         if (cfg->GeoIPOutput & GEOIP_ENV) {
             apr_table_setn(r->subprocess_env, value, key);
         }
+        if (cfg->GeoIPOutput & GEOIP_REQUEST) {
+            apr_table_setn(r->headers_in, key, value);
+        }
     }
 }
 
@@ -402,7 +408,10 @@ static int geoip_header_parser(request_rec * r)
         ipaddr = _get_client_ip(r);
     } else {
         ap_add_common_vars(r);
-        if (apr_table_get(r->subprocess_env, "HTTP_CLIENT_IP")) {
+        if (cfg->GeoIPProxyField) {
+            ipaddr_ptr =
+                (char *)apr_table_get(r->headers_in, cfg->GeoIPProxyField);
+        } else if (apr_table_get(r->subprocess_env, "HTTP_CLIENT_IP")) {
             ipaddr_ptr =
                 (char *)apr_table_get(r->subprocess_env, "HTTP_CLIENT_IP");
         } else if (apr_table_get(r->subprocess_env, "HTTP_X_FORWARDED_FOR")) {
@@ -690,6 +699,19 @@ static int geoip_header_parser(request_rec * r)
     return OK;
 }
 
+static const char *geoip_scanproxyfield(cmd_parms * cmd, void *dummy,
+                                        const char *field)
+{
+    geoip_server_config_rec *conf = (geoip_server_config_rec *)
+        ap_get_module_config(cmd->server->module_config, &geoip_module);
+
+    if (!field)
+        return NULL;
+
+    conf->GeoIPProxyField = (char *)apr_pstrdup(cmd->pool, field);
+    return NULL;
+}
+
 static const char *geoip_use_first_non_private_x_forwarded_for_ip(cmd_parms *
                                                                   cmd,
                                                                   void *dummy,
@@ -818,8 +840,8 @@ static const char *set_geoip_output(cmd_parms * cmd, void *dummy,
                                     const char *arg)
 {
     geoip_server_config_rec *cfg =
-        (geoip_server_config_rec *) ap_get_module_config(cmd->server->
-                                                         module_config,
+        (geoip_server_config_rec *) ap_get_module_config(cmd->
+                                                         server->module_config,
                                                          &geoip_module);
 
     if (cfg->GeoIPOutput & GEOIP_DEFAULT) {
@@ -858,6 +880,8 @@ static void *make_geoip(apr_pool_t * p, server_rec * d)
 static const command_rec geoip_cmds[] = {
     AP_INIT_FLAG("GeoIPScanProxyHeaders", geoip_scanproxy, NULL, RSRC_CONF,
                  "Get IP from HTTP_CLIENT IP or X-Forwarded-For"),
+    AP_INIT_TAKE1("GeoIPScanProxyHeaderField", geoip_scanproxyfield, NULL,
+                  RSRC_CONF, "Get IP from this header field, only"),
     AP_INIT_FLAG("GeoIPUseFirstNonPrivateXForwardedForIP",
                  geoip_use_first_non_private_x_forwarded_for_ip, NULL,
                  RSRC_CONF,
