@@ -114,7 +114,7 @@ module AP_MODULE_DECLARE_DATA geoip_module;
 
 uint32_t _private_ipv4_networks[] = {
     167772160U, 184549375U,     // 10.0.0.0/8
-    1681915904U, 1686110207U,	// 100.64.0.0/10
+    1681915904U, 1686110207U,   // 100.64.0.0/10
     2130706432U, 2147483647U,   // 127.0.0.0/8
     2886729728U, 2887778303U,   // 172.16.0.0/12
     3221225984U, 3221226239U,   // 192.0.2.0/24
@@ -624,6 +624,11 @@ static int geoip_header_parser(request_rec * r)
                         apr_table_set(r->notes,
                                       "GEOIP_COUNTRY_CODE",
                                       giregion->country_code);
+                        apr_table_set(r->notes,
+                                      "GEOIP_COUNTRY_NAME",
+                                      GeoIP_country_name[GeoIP_id_by_code
+                                                         (giregion->
+                                                          country_code[0])]);
                     }
                     if (giregion->region[0]) {
                         apr_table_set(r->notes,
@@ -639,6 +644,11 @@ static int geoip_header_parser(request_rec * r)
                         apr_table_set(r->subprocess_env,
                                       "GEOIP_COUNTRY_CODE",
                                       giregion->country_code);
+                        apr_table_set(r->subprocess_env,
+                                      "GEOIP_COUNTRY_NAME",
+                                      GeoIP_country_name[GeoIP_id_by_code
+                                                         (giregion->
+                                                          country_code[0])]);
                     }
                     if (giregion->region[0]) {
                         apr_table_set(r->subprocess_env,
@@ -999,8 +1009,8 @@ static const char *set_geoip_output(cmd_parms * cmd, void *dummy,
                                     const char *arg)
 {
     geoip_server_config_rec *cfg =
-        (geoip_server_config_rec *) ap_get_module_config(cmd->server->
-                                                         module_config,
+        (geoip_server_config_rec *) ap_get_module_config(cmd->
+                                                         server->module_config,
                                                          &geoip_module);
 
     if (cfg->GeoIPOutput & GEOIP_DEFAULT) {
