@@ -618,17 +618,26 @@ static int geoip_header_parser(request_rec * r)
                     region_name =
                         GeoIP_region_name_by_code
                         (giregion->country_code, giregion->region);
+
                 }
                 if (cfg->GeoIPOutput & GEOIP_NOTES) {
                     if (giregion->country_code[0]) {
                         apr_table_set(r->notes,
                                       "GEOIP_COUNTRY_CODE",
                                       giregion->country_code);
-                        apr_table_set(r->notes,
-                                      "GEOIP_COUNTRY_NAME",
-                                      GeoIP_country_name[GeoIP_id_by_code
-                                                         (giregion->
-                                                          country_code[0])]);
+                        country_id =
+                            GeoIP_id_by_code(giregion->country_code[0]);
+                        if (country_id > 0) {
+                            continent_code =
+                                GeoIP_country_continent[country_id];
+                            country_code = GeoIP_country_code[country_id];
+                            country_name = GeoIP_country_name[country_id];
+                            apr_table_set(r->notes, "GEOIP_CONTINENT_CODE",
+                                          continent_code);
+
+                            apr_table_set(r->notes,
+                                          "GEOIP_COUNTRY_NAME", country_name);
+                        }
                     }
                     if (giregion->region[0]) {
                         apr_table_set(r->notes,
@@ -644,11 +653,21 @@ static int geoip_header_parser(request_rec * r)
                         apr_table_set(r->subprocess_env,
                                       "GEOIP_COUNTRY_CODE",
                                       giregion->country_code);
-                        apr_table_set(r->subprocess_env,
-                                      "GEOIP_COUNTRY_NAME",
-                                      GeoIP_country_name[GeoIP_id_by_code
-                                                         (giregion->
-                                                          country_code[0])]);
+
+                        country_id =
+                            GeoIP_id_by_code(giregion->country_code[0]);
+                        if (country_id > 0) {
+                            continent_code =
+                                GeoIP_country_continent[country_id];
+                            country_code = GeoIP_country_code[country_id];
+                            country_name = GeoIP_country_name[country_id];
+                            apr_table_set(r->subprocess_env,
+                                          "GEOIP_CONTINENT_CODE",
+                                          continent_code);
+
+                            apr_table_set(r->subprocess_env,
+                                          "GEOIP_COUNTRY_NAME", country_name);
+                        }
                     }
                     if (giregion->region[0]) {
                         apr_table_set(r->subprocess_env,
@@ -1009,8 +1028,8 @@ static const char *set_geoip_output(cmd_parms * cmd, void *dummy,
                                     const char *arg)
 {
     geoip_server_config_rec *cfg =
-        (geoip_server_config_rec *) ap_get_module_config(cmd->
-                                                         server->module_config,
+        (geoip_server_config_rec *) ap_get_module_config(cmd->server->
+                                                         module_config,
                                                          &geoip_module);
 
     if (cfg->GeoIPOutput & GEOIP_DEFAULT) {
